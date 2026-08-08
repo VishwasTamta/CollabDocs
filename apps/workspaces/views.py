@@ -1,5 +1,6 @@
 from django.db import IntegrityError, transaction
 from rest_framework.decorators import action
+from django.db.models import Count
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -16,7 +17,9 @@ class WorkspaceViewSet(ModelViewSet):
     Handles CRUD operations for Workspace.
     """
 
-    queryset = Workspace.objects.select_related("owner").all()
+    queryset = Workspace.objects.select_related("owner").annotate(
+        member_count=Count("members")
+    )
     serializer_class = WorkspaceSerializer
 
     def create(self, request, *args, **kwargs):
