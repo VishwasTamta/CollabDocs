@@ -50,3 +50,5 @@ class WorkspaceMember(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.workspace} ({self.role})"
+
+    
