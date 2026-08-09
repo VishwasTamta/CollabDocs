@@ -1,9 +1,5 @@
-from datetime import datetime, time
-
 from django.db import transaction
 from django.db.models import Count, Q
-from django.utils import timezone
-from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -11,35 +7,12 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from apps.auditlogs.models import AuditLog
+from apps.common.utils import parse_timestamp
 from apps.tags.models import Tag
 from apps.tags.serializers import AttachTagsSerializer, TagSerializer
 
 from .models import Document, DocumentVersion
 from .serializers import DocumentSerializer, DocumentVersionSerializer
-
-
-def parse_timestamp(value, field_name):
-    """Turn an ISO date or datetime query parameter into an aware datetime."""
-
-    parsed = parse_datetime(value) or parse_date(value)
-
-    if parsed is None:
-        raise ValidationError(
-            {
-                field_name: (
-                    "Expected an ISO date or datetime, "
-                    "e.g. 2026-08-09 or 2026-08-09T10:30:00Z."
-                )
-            }
-        )
-
-    if not isinstance(parsed, datetime):
-        parsed = datetime.combine(parsed, time.min)
-
-    if timezone.is_naive(parsed):
-        parsed = timezone.make_aware(parsed)
-
-    return parsed
 
 
 class DocumentViewSet(ModelViewSet):
