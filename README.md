@@ -283,16 +283,13 @@ Create Pull Request to `main`.
 
 # Pending Tasks
 
-- [ ] Models
-- [ ] Serializers
-- [ ] ViewSets
-- [ ] URLs
-- [ ] Middleware
-- [ ] Signals
-- [ ] Transactions
-- [ ] Testing
-- [ ] Postman Collection
-- [ ] Documentation
+See [PROGRESS_TRACKER.md](./PROGRESS_TRACKER.md) for full details and owners.
+
+- [ ] Request-logging middleware (not implemented — not in `MIDDLEWARE`, no middleware file)
+- [ ] AuditLog read API (`GET /api/audit-logs/`) — serializer, view, and URL are all missing/broken
+- [ ] Workspace Summary endpoint (listed above under API Modules, not actually built)
+- [ ] Demo video (Loom/Drive link)
+- [ ] Fill in the Module Ownership table and Contributors list in this README
 
 ---
 
