@@ -10,6 +10,10 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from apps.auditlogs.models import AuditLog
+from apps.tags.models import Tag
+from apps.tags.serializers import AttachTagsSerializer, TagSerializer
+
 from .models import Document, DocumentVersion
 from .serializers import DocumentSerializer, DocumentVersionSerializer
 
@@ -98,6 +102,15 @@ class DocumentViewSet(ModelViewSet):
                 updated_at__lte=parse_timestamp(updated_before, "updated_before")
             )
 
+        tag = params.get("tag")
+        if tag:
+            queryset = queryset.filter(tags__name__iexact=tag.strip().lower())
+
+        tags_in = params.get("tags")
+        if tags_in:
+            values = [item.strip().lower() for item in tags_in.split(",") if item.strip()]
+            queryset = queryset.filter(tags__name__in=values)
+
         # OR search across title and body.
         search = params.get("search")
         if search:
@@ -105,7 +118,7 @@ class DocumentViewSet(ModelViewSet):
                 Q(title__icontains=search) | Q(content__icontains=search)
             )
 
-        return queryset.order_by("-updated_at")
+        return queryset.distinct().order_by("-updated_at")
 
     def reload(self, document):
         """Re-read a document so annotated counts include the version just added."""
@@ -166,6 +179,61 @@ class DocumentViewSet(ModelViewSet):
                 "title": document.title,
                 "version_count": versions.count(),
                 "versions": DocumentVersionSerializer(versions, many=True).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"], url_path="tags")
+    def tags(self, request, pk=None):
+        """
+        Attach tags to a document, creating any name that does not exist yet.
+
+        An M2M change fires no model post_save, so unlike a document save this
+        action writes its own AuditLog row - inside the same atomic block as
+        the tag attach, so the two cannot drift apart.
+        """
+
+        document = self.get_object()
+
+        serializer = AttachTagsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        names = serializer.validated_data.get("tags", [])
+        tag_ids = serializer.validated_data.get("tag_ids", [])
+        actor = serializer.validated_data.get("actor") or document.created_by
+
+        if tag_ids:
+            found_ids = set(
+                Tag.objects.filter(id__in=tag_ids).values_list("id", flat=True)
+            )
+            missing = [str(tag_id) for tag_id in tag_ids if tag_id not in found_ids]
+
+            if missing:
+                return Response(
+                    {"detail": f"No tag found for id(s): {', '.join(missing)}."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        with transaction.atomic():
+            attached = [Tag.objects.get_or_create(name=name)[0] for name in names]
+
+            if tag_ids:
+                attached.extend(Tag.objects.filter(id__in=tag_ids))
+
+            document.tags.add(*attached)
+
+            AuditLog.objects.create(
+                actor=actor,
+                action="tagged",
+                model_name="Document",
+                object_id=str(document.pk),
+            )
+
+        return Response(
+            {
+                "document": document.id,
+                "attached": TagSerializer(attached, many=True).data,
+                "all_tags": list(document.tags.values_list("name", flat=True)),
             },
             status=status.HTTP_200_OK,
         )
